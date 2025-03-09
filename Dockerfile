@@ -15,3 +15,4 @@ COPY ./github_action_resources/checkov-problem-matcher-softfail.json /usr/local/
 
 # Code file to execute when the docker container starts up (`entrypoint.sh`)
 ENTRYPOINT ["/entrypoint.sh"]
+test
