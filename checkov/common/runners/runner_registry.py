@@ -4,8 +4,9 @@ from abc import abstractmethod
 
 from checkov.common.bridgecrew.integration_features.integration_feature_registry import integration_feature_registry
 from checkov.common.output.report import Report
+from checkov.common.output.html_report import get_html_report_string
 
-OUTPUT_CHOICES = ['cli', 'json', 'junitxml', 'github_failed_only']
+OUTPUT_CHOICES = ['cli', 'json', 'junitxml', 'github_failed_only', 'html']
 
 from checkov.common.bridgecrew.platform_integration import BcPlatformIntegration
 
@@ -54,6 +55,8 @@ class RunnerRegistry(object):
                     # report.print_junit_xml()
                 elif args.output == 'github_failed_only':
                     report.print_failed_github_md()
+                elif args.output == 'html':
+                    pass  # HTML reports are collected and rendered after the loop
                 else:
                     report.print_console(is_quiet=args.quiet, is_compact=args.compact)
                     if url:
@@ -74,6 +77,11 @@ class RunnerRegistry(object):
                 print(json.dumps(report_jsons[0], indent=4))
             else:
                 print(json.dumps(report_jsons, indent=4))
+        if args.output == "html":
+            html_reports = [report for report in scan_reports if not report.is_empty()]
+            if html_reports:
+                html_string = get_html_report_string(html_reports, quiet=args.quiet, compact=args.compact)
+                print(html_string)
         if args.output == "cli":
             self.bc_platform.get_report_to_platform(args,scan_reports)
 
