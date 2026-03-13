@@ -568,7 +568,7 @@
                             <div><span class="material-icons detail-icon" aria-hidden="true">call_made</span> Calling File: {{ record.caller_file_path }}:{{ record.caller_file_line_range | join('-') }}</div>
                             {% endif %}
                             {% if record.guideline %}
-                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a></div>
+                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: {% if record.guideline.startswith('https://') or record.guideline.startswith('http://') %}<a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a>{% else %}{{ record.guideline }}{% endif %}</div>
                             {% endif %}
                         </div>
                         {% if record.code_block and record.code_block is iterable and record.code_block is not string %}
@@ -598,7 +598,7 @@
                             <div><span class="material-icons detail-icon" aria-hidden="true">description</span> Resource: <strong>{{ record.resource }}</strong></div>
                             <div><span class="material-icons detail-icon" aria-hidden="true">folder</span> File: {{ record.file_path }}:{{ record.file_line_range | join('-') }}</div>
                             {% if record.guideline %}
-                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a></div>
+                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: {% if record.guideline.startswith('https://') or record.guideline.startswith('http://') %}<a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a>{% else %}{{ record.guideline }}{% endif %}</div>
                             {% endif %}
                         </div>
                     </div>
@@ -626,7 +626,7 @@
                             <div><span class="material-icons detail-icon" aria-hidden="true">speaker_notes_off</span> Suppress comment: {{ record.check_result.suppress_comment }}</div>
                             {% endif %}
                             {% if record.guideline %}
-                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a></div>
+                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: {% if record.guideline.startswith('https://') or record.guideline.startswith('http://') %}<a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a>{% else %}{{ record.guideline }}{% endif %}</div>
                             {% endif %}
                         </div>
                     </div>
