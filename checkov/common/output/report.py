@@ -148,3 +148,38 @@ class Report:
     def print_json(self):
         print(self.get_json())
 
+    def get_html_dict(self, is_quiet=False):
+        """Return report data optimized for HTML template rendering.
+
+        Unlike get_dict() which converts Record objects to plain dicts via __dict__,
+        this method retains the raw Record objects so that Jinja2 templates can access
+        Record attributes (check_id, check_name, check_result, code_block, file_path,
+        file_line_range, resource, guideline, etc.) directly via dot notation.
+
+        Args:
+            is_quiet: When True, only failed_checks are included; passed_checks,
+                      skipped_checks, and parsing_errors are set to empty lists.
+
+        Returns:
+            A dict with keys: check_type, passed_checks, failed_checks,
+            skipped_checks, parsing_errors, and summary.
+        """
+        if is_quiet:
+            return {
+                "check_type": self.check_type,
+                "passed_checks": [],
+                "failed_checks": self.failed_checks,
+                "skipped_checks": [],
+                "parsing_errors": [],
+                "summary": self.get_summary()
+            }
+        else:
+            return {
+                "check_type": self.check_type,
+                "passed_checks": self.passed_checks,
+                "failed_checks": self.failed_checks,
+                "skipped_checks": self.skipped_checks,
+                "parsing_errors": self.parsing_errors,
+                "summary": self.get_summary()
+            }
+
