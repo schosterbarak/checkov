@@ -28,6 +28,7 @@ class OutputFormat(Enum):
     CONSOLE = 1
     JSON = 2
     JUNIT_XML = 3
+    HTML = 4
 
 
 class ContextCategories(Enum):
