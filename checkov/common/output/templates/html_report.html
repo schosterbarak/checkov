@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkov Scan Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        /* ============================================================
+           Material Design 3 — CSS Custom Properties (Design Tokens)
+           ============================================================ */
+        :root {
+            /* M3 Color Tokens - Light Theme */
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #EADDFF;
+            --md-sys-color-on-primary-container: #21005D;
+            --md-sys-color-secondary: #625B71;
+            --md-sys-color-secondary-container: #E8DEF8;
+            --md-sys-color-on-secondary-container: #1D192B;
+            --md-sys-color-tertiary: #7D5260;
+            --md-sys-color-tertiary-container: #FFD8E4;
+            --md-sys-color-on-tertiary-container: #31111D;
+            --md-sys-color-error: #B3261E;
+            --md-sys-color-error-container: #F9DEDC;
+            --md-sys-color-on-error-container: #410E0B;
+            --md-sys-color-surface: #FFFBFE;
+            --md-sys-color-surface-container: #F3EDF7;
+            --md-sys-color-surface-container-low: #F7F2FA;
+            --md-sys-color-surface-variant: #E7E0EC;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-on-surface-variant: #49454F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-color-outline-variant: #CAC4D0;
+
+            /* M3 Spacing Tokens */
+            --md-sys-spacing-sm: 8px;
+            --md-sys-spacing-md: 16px;
+            --md-sys-spacing-lg: 24px;
+            --md-sys-spacing-xl: 32px;
+
+            /* M3 Shape Tokens */
+            --md-sys-shape-corner-small: 8px;
+            --md-sys-shape-corner-medium: 12px;
+            --md-sys-shape-corner-large: 16px;
+        }
+
+        /* ============================================================
+           M3 Typography Scale Classes
+           ============================================================ */
+        .md-typescale-display-medium {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 2.8125rem; /* 45px */
+            line-height: 3.25rem; /* 52px */
+            font-weight: 400;
+        }
+
+        .md-typescale-headline-small {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 1.5rem; /* 24px */
+            line-height: 2rem; /* 32px */
+            font-weight: 400;
+        }
+
+        .md-typescale-title-medium {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 1rem; /* 16px */
+            line-height: 1.5rem; /* 24px */
+            font-weight: 500;
+        }
+
+        .md-typescale-body-large {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 1rem; /* 16px */
+            line-height: 1.5rem; /* 24px */
+            font-weight: 400;
+        }
+
+        .md-typescale-body-medium {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.25rem; /* 20px */
+            font-weight: 400;
+        }
+
+        .md-typescale-label-large {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.25rem; /* 20px */
+            font-weight: 500;
+        }
+
+        /* ============================================================
+           Base Reset and Body
+           ============================================================ */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 1rem;
+            line-height: 1.5rem;
+            font-weight: 400;
+        }
+
+        /* ============================================================
+           Container
+           ============================================================ */
+        .container {
+            max-width: 1200px;
+            margin-inline: auto;
+            padding-inline: var(--md-sys-spacing-md);
+        }
+
+        /* ============================================================
+           Report Header
+           ============================================================ */
+        .report-header {
+            background-color: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+            padding: var(--md-sys-spacing-lg);
+            border-radius: var(--md-sys-shape-corner-medium);
+            margin-block-start: var(--md-sys-spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--md-sys-spacing-md);
+            flex-wrap: wrap;
+        }
+
+        .report-header .header-icon {
+            font-size: 3rem;
+        }
+
+        .report-header .header-content {
+            flex: 1 1 0;
+            min-width: 200px;
+        }
+
+        .report-header .header-title {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 2.8125rem;
+            line-height: 3.25rem;
+            font-weight: 400;
+            margin: 0;
+        }
+
+        .report-header .header-meta {
+            margin-block-start: var(--md-sys-spacing-sm);
+            display: flex;
+            gap: var(--md-sys-spacing-lg);
+            flex-wrap: wrap;
+        }
+
+        .report-header .header-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .report-header .header-meta .material-icons {
+            font-size: 1.125rem;
+        }
+
+        /* ============================================================
+           Summary Dashboard
+           ============================================================ */
+        .summary-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--md-sys-spacing-md);
+            margin-block: var(--md-sys-spacing-lg);
+        }
+
+        .summary-card {
+            border-radius: var(--md-sys-shape-corner-medium);
+            padding: var(--md-sys-spacing-md);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+            text-align: center;
+        }
+
+        .summary-card .material-icons {
+            font-size: 2.5rem;
+            margin-block-end: var(--md-sys-spacing-sm);
+        }
+
+        .card-count {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 2.8125rem;
+            line-height: 3.25rem;
+            font-weight: 400;
+        }
+
+        .card-label {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            font-weight: 500;
+            margin-block-start: 4px;
+        }
+
+        .passed-card {
+            background-color: var(--md-sys-color-tertiary-container);
+            color: var(--md-sys-color-on-tertiary-container);
+        }
+
+        .failed-card {
+            background-color: var(--md-sys-color-error-container);
+            color: var(--md-sys-color-on-error-container);
+        }
+
+        .skipped-card {
+            background-color: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+        }
+
+        .errors-card {
+            background-color: var(--md-sys-color-surface-variant);
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        /* ============================================================
+           Framework Sections
+           ============================================================ */
+        .framework-section {
+            margin-block-end: var(--md-sys-spacing-lg);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: var(--md-sys-spacing-sm);
+            padding: var(--md-sys-spacing-md);
+            background-color: var(--md-sys-color-surface-container-low);
+            border-radius: var(--md-sys-shape-corner-medium);
+            cursor: pointer;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .section-header:focus-visible {
+            outline: 2px solid var(--md-sys-color-primary);
+            outline-offset: 2px;
+        }
+
+        .section-header .material-icons {
+            font-size: 1.5rem;
+            color: var(--md-sys-color-on-surface-variant);
+            transition: transform 0.2s ease-out;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            flex: 1 1 0;
+        }
+
+        .section-summary {
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            font-weight: 500;
+            color: var(--md-sys-color-on-surface-variant);
+            white-space: nowrap;
+        }
+
+        .section-content {
+            padding-block-start: var(--md-sys-spacing-md);
+        }
+
+        /* ============================================================
+           Check Groups
+           ============================================================ */
+        .checks-group {
+            margin-block-end: var(--md-sys-spacing-lg);
+        }
+
+        .checks-group-header {
+            display: flex;
+            align-items: center;
+            gap: var(--md-sys-spacing-sm);
+            margin-block-start: 0;
+            margin-block-end: var(--md-sys-spacing-md);
+            padding-block-end: var(--md-sys-spacing-sm);
+            border-block-end: 1px solid var(--md-sys-color-outline-variant);
+        }
+
+        .checks-group-header .material-icons {
+            font-size: 1.25rem;
+        }
+
+        .failed-group {
+            color: var(--md-sys-color-error);
+        }
+
+        .passed-group {
+            color: var(--md-sys-color-tertiary);
+        }
+
+        .skipped-group {
+            color: var(--md-sys-color-secondary);
+        }
+
+        .errors-group {
+            color: var(--md-sys-color-error);
+        }
+
+        /* ============================================================
+           Check Result Rows
+           ============================================================ */
+        .check-result {
+            background-color: var(--md-sys-color-surface-container);
+            border-radius: var(--md-sys-shape-corner-small);
+            padding: var(--md-sys-spacing-md);
+            margin-block-end: var(--md-sys-spacing-sm);
+        }
+
+        .check-header {
+            display: flex;
+            align-items: center;
+            gap: var(--md-sys-spacing-sm);
+            flex-wrap: wrap;
+        }
+
+        .check-id {
+            font-family: 'Roboto Mono', 'Courier New', monospace;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background-color: var(--md-sys-color-surface-variant);
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .check-name {
+            flex: 1 1 0;
+            min-width: 200px;
+            overflow-wrap: break-word;
+        }
+
+        /* ============================================================
+           Status Badges
+           ============================================================ */
+        .status-badge {
+            display: inline-block;
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            font-weight: 500;
+            border-radius: var(--md-sys-shape-corner-small);
+            padding: 4px 12px;
+            white-space: nowrap;
+        }
+
+        .passed-badge {
+            background-color: var(--md-sys-color-tertiary-container);
+            color: var(--md-sys-color-on-tertiary-container);
+        }
+
+        .failed-badge {
+            background-color: var(--md-sys-color-error-container);
+            color: var(--md-sys-color-on-error-container);
+        }
+
+        .skipped-badge {
+            background-color: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+        }
+
+        /* ============================================================
+           Check Details
+           ============================================================ */
+        .check-details {
+            margin-block-start: var(--md-sys-spacing-sm);
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        .check-details > div {
+            display: flex;
+            align-items: flex-start;
+            gap: 4px;
+            margin-block-end: 4px;
+        }
+
+        .detail-icon {
+            font-size: 1.125rem;
+            color: var(--md-sys-color-on-surface-variant);
+            flex-shrink: 0;
+            margin-block-start: 1px;
+        }
+
+        .check-details a {
+            color: var(--md-sys-color-primary);
+            text-decoration: underline;
+            overflow-wrap: break-word;
+        }
+
+        .check-details a:focus-visible {
+            outline: 2px solid var(--md-sys-color-primary);
+            outline-offset: 2px;
+        }
+
+        /* ============================================================
+           Code Blocks
+           ============================================================ */
+        .code-block {
+            background-color: var(--md-sys-color-surface-variant);
+            border-radius: var(--md-sys-shape-corner-small);
+            padding: var(--md-sys-spacing-md);
+            margin-block-start: var(--md-sys-spacing-sm);
+            overflow-x: auto;
+            font-family: 'Roboto Mono', 'Courier New', monospace;
+            font-size: 0.8125rem;
+            line-height: 1.375rem;
+        }
+
+        .code-block code {
+            font-family: inherit;
+            white-space: pre;
+        }
+
+        .line-number {
+            display: inline-block;
+            min-width: 3em;
+            padding-inline-end: 1em;
+            text-align: end;
+            color: var(--md-sys-color-on-surface-variant);
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* ============================================================
+           Parsing Errors
+           ============================================================ */
+        .parsing-error {
+            display: flex;
+            align-items: center;
+            gap: var(--md-sys-spacing-sm);
+            color: var(--md-sys-color-error);
+            padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+            margin-block-end: var(--md-sys-spacing-sm);
+            background-color: var(--md-sys-color-error-container);
+            border-radius: var(--md-sys-shape-corner-small);
+        }
+
+        .parsing-error .material-icons {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .parsing-error span:last-child {
+            overflow-wrap: break-word;
+        }
+
+        /* ============================================================
+           Footer
+           ============================================================ */
+        .report-footer {
+            margin-block-start: var(--md-sys-spacing-xl);
+            padding: var(--md-sys-spacing-lg);
+            border-block-start: 1px solid var(--md-sys-color-outline-variant);
+            text-align: center;
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        .report-footer p {
+            margin-block: var(--md-sys-spacing-sm);
+        }
+
+        /* ============================================================
+           Accessibility — Reduced Motion
+           ============================================================ */
+        @media (prefers-reduced-motion: reduce) {
+            .section-header .material-icons {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ========================================================
+             Report Header
+             ======================================================== -->
+        <header class="report-header">
+            <span class="material-icons header-icon" aria-hidden="true">verified_user</span>
+            <div class="header-content">
+                <h1 class="header-title">Checkov</h1>
+                <div class="header-meta md-typescale-body-medium">
+                    <span><span class="material-icons" aria-hidden="true">tag</span> v{{ checkov_version }}</span>
+                    <span><span class="material-icons" aria-hidden="true">schedule</span> {{ scan_date }}</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ========================================================
+             Summary Dashboard
+             ======================================================== -->
+        <div class="summary-dashboard" role="region" aria-label="Scan summary">
+            <div class="summary-card passed-card">
+                <span class="material-icons" aria-hidden="true">check_circle</span>
+                <div class="card-count">{{ total_passed }}</div>
+                <div class="card-label">Passed</div>
+            </div>
+            <div class="summary-card failed-card">
+                <span class="material-icons" aria-hidden="true">cancel</span>
+                <div class="card-count">{{ total_failed }}</div>
+                <div class="card-label">Failed</div>
+            </div>
+            <div class="summary-card skipped-card">
+                <span class="material-icons" aria-hidden="true">remove_circle</span>
+                <div class="card-count">{{ total_skipped }}</div>
+                <div class="card-label">Skipped</div>
+            </div>
+            <div class="summary-card errors-card">
+                <span class="material-icons" aria-hidden="true">error</span>
+                <div class="card-count">{{ total_parsing_errors }}</div>
+                <div class="card-label">Parsing Errors</div>
+            </div>
+        </div>
+
+        <!-- ========================================================
+             Per-Framework Report Sections
+             ======================================================== -->
+        <main>
+        {% for report in reports %}
+        <section class="framework-section">
+            <div class="section-header" onclick="toggleSection(this)" role="button" tabindex="0" aria-expanded="true" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSection(this);}">
+                <span class="material-icons" aria-hidden="true">expand_more</span>
+                <h2 class="md-typescale-headline-small">{{ report.check_type }} scan results</h2>
+                <span class="section-summary">
+                    Passed: {{ report.summary.passed }} | Failed: {{ report.summary.failed }} | Skipped: {{ report.summary.skipped }}
+                </span>
+            </div>
+            <div class="section-content">
+                <!-- Failed Checks -->
+                {% if report.failed_checks %}
+                <div class="checks-group">
+                    <h3 class="md-typescale-title-medium checks-group-header failed-group">
+                        <span class="material-icons" aria-hidden="true">cancel</span> Failed Checks ({{ report.failed_checks|length }})
+                    </h3>
+                    {% for record in report.failed_checks %}
+                    <div class="check-result">
+                        <div class="check-header">
+                            <span class="status-badge failed-badge">FAILED</span>
+                            <span class="check-id">{{ record.check_id }}</span>
+                            <span class="check-name md-typescale-body-large">{{ record.check_name }}</span>
+                        </div>
+                        <div class="check-details md-typescale-body-medium">
+                            <div><span class="material-icons detail-icon" aria-hidden="true">description</span> Resource: <strong>{{ record.resource }}</strong></div>
+                            <div><span class="material-icons detail-icon" aria-hidden="true">folder</span> File: {{ record.file_path }}:{{ record.file_line_range | join('-') }}</div>
+                            {% if record.caller_file_path and record.caller_file_line_range %}
+                            <div><span class="material-icons detail-icon" aria-hidden="true">call_made</span> Calling File: {{ record.caller_file_path }}:{{ record.caller_file_line_range | join('-') }}</div>
+                            {% endif %}
+                            {% if record.guideline %}
+                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a></div>
+                            {% endif %}
+                        </div>
+                        {% if record.code_block and record.code_block is iterable and record.code_block is not string %}
+                        <pre class="code-block"><code>{% for line_num, line_text in record.code_block %}
+<span class="line-number">{{ line_num }}</span>{{ line_text }}{% endfor %}</code></pre>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Passed Checks -->
+                {% if report.passed_checks %}
+                <div class="checks-group">
+                    <h3 class="md-typescale-title-medium checks-group-header passed-group">
+                        <span class="material-icons" aria-hidden="true">check_circle</span> Passed Checks ({{ report.passed_checks|length }})
+                    </h3>
+                    {% for record in report.passed_checks %}
+                    <div class="check-result">
+                        <div class="check-header">
+                            <span class="status-badge passed-badge">PASSED</span>
+                            <span class="check-id">{{ record.check_id }}</span>
+                            <span class="check-name md-typescale-body-large">{{ record.check_name }}</span>
+                        </div>
+                        <div class="check-details md-typescale-body-medium">
+                            <div><span class="material-icons detail-icon" aria-hidden="true">description</span> Resource: <strong>{{ record.resource }}</strong></div>
+                            <div><span class="material-icons detail-icon" aria-hidden="true">folder</span> File: {{ record.file_path }}:{{ record.file_line_range | join('-') }}</div>
+                            {% if record.guideline %}
+                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Skipped Checks -->
+                {% if report.skipped_checks %}
+                <div class="checks-group">
+                    <h3 class="md-typescale-title-medium checks-group-header skipped-group">
+                        <span class="material-icons" aria-hidden="true">remove_circle</span> Skipped Checks ({{ report.skipped_checks|length }})
+                    </h3>
+                    {% for record in report.skipped_checks %}
+                    <div class="check-result">
+                        <div class="check-header">
+                            <span class="status-badge skipped-badge">SKIPPED</span>
+                            <span class="check-id">{{ record.check_id }}</span>
+                            <span class="check-name md-typescale-body-large">{{ record.check_name }}</span>
+                        </div>
+                        <div class="check-details md-typescale-body-medium">
+                            <div><span class="material-icons detail-icon" aria-hidden="true">description</span> Resource: <strong>{{ record.resource }}</strong></div>
+                            <div><span class="material-icons detail-icon" aria-hidden="true">folder</span> File: {{ record.file_path }}:{{ record.file_line_range | join('-') }}</div>
+                            {% if record.check_result.suppress_comment is defined and record.check_result.suppress_comment %}
+                            <div><span class="material-icons detail-icon" aria-hidden="true">speaker_notes_off</span> Suppress comment: {{ record.check_result.suppress_comment }}</div>
+                            {% endif %}
+                            {% if record.guideline %}
+                            <div><span class="material-icons detail-icon" aria-hidden="true">menu_book</span> Guide: <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">{{ record.guideline }}</a></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Parsing Errors -->
+                {% if report.parsing_errors %}
+                <div class="checks-group">
+                    <h3 class="md-typescale-title-medium checks-group-header errors-group">
+                        <span class="material-icons" aria-hidden="true">error</span> Parsing Errors ({{ report.parsing_errors|length }})
+                    </h3>
+                    {% for file in report.parsing_errors %}
+                    <div class="parsing-error">
+                        <span class="material-icons" aria-hidden="true">warning</span>
+                        <span>Error parsing file: {{ file }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div><!-- .section-content -->
+        </section>
+        {% endfor %}
+        </main>
+
+        <!-- ========================================================
+             Footer
+             ======================================================== -->
+        <footer class="report-footer">
+            <p>Generated by <strong>Checkov</strong> v{{ checkov_version }} on {{ scan_date }}</p>
+            <p class="md-typescale-body-medium">This report may contain file paths and resource configurations from the scanned repository.</p>
+        </footer>
+    </div>
+
+    <script>
+    function toggleSection(header) {
+        var content = header.nextElementSibling;
+        var icon = header.querySelector('.material-icons');
+        var isHidden = content.style.display === 'none';
+        if (isHidden) {
+            content.style.display = 'block';
+            icon.textContent = 'expand_more';
+            header.setAttribute('aria-expanded', 'true');
+        } else {
+            content.style.display = 'none';
+            icon.textContent = 'chevron_right';
+            header.setAttribute('aria-expanded', 'false');
+        }
+    }
+    </script>
+</body>
+</html>
