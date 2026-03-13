@@ -45,7 +45,7 @@ Checkov also powers [**Bridgecrew**](https://bridgecrew.io/?utm_source=github&ut
  * Evaluates [Terraform Provider](https://registry.terraform.io/browse/providers) settings to regulate the creation, management, and updates of IaaS, PaaS or SaaS managed through Terraform.
  * Policies support evaluation of [variables](docs/2.Basics/Handling%20Variables.md) to their optional default value.
  * Supports in-line [suppression](docs/2.Basics/Suppressing%20and%20Skipping%20Policies.md) of accepted risks or false-positives to reduce recurring scan failures. Also supports global skip from using CLI.
-* [Output](docs/2.Basics/Reviewing%20Scan%20Results.md) currently available as CLI, JSON, JUnit XML and github markdown and link to remediation [guides](https://docs.bridgecrew.io/docs/aws-policy-index).
+* [Output](docs/2.Basics/Reviewing%20Scan%20Results.md) currently available as CLI, JSON, JUnit XML, github markdown and HTML report and link to remediation [guides](https://docs.bridgecrew.io/docs/aws-policy-index).
  
 ## Screenshots
 
@@ -173,6 +173,16 @@ Check: "Ensure all data stored in the S3 bucket is securely encrypted at rest"
 /../regionStack/main.tf:
 	 Failed for resource: aws_s3_bucket.sls_deployment_bucket_name       
 ```
+
+### Scan result sample (HTML)
+
+Generate a Material Design 3 styled HTML report viewable in a browser:
+
+```sh
+checkov -d /user/path/to/iac/code -o html > report.html
+```
+
+Open `report.html` in Chrome to view the scan results as a styled, single-page report with summary dashboard, expandable check details, and code snippets.
 
 Start using Checkov by reading the [Getting Started](docs/1.Welcome/Quick%20Start.md) page.
 
