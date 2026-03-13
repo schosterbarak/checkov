@@ -39,7 +39,7 @@ setup(
         "colorama",
         "termcolor",
         "junit-xml",
-        "jinja2>=2.11.0",
+        "jinja2>=3.1.3",
         "dpath>=1.5.0,<2",
         "pyyaml>=5.4.1",
         "boto3==1.17.27",

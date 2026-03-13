@@ -243,6 +243,10 @@
             user-select: none;
         }
 
+        .section-header:hover {
+            background-color: var(--md-sys-color-surface-container);
+        }
+
         .section-header:focus-visible {
             outline: 2px solid var(--md-sys-color-primary);
             outline-offset: 2px;
@@ -396,6 +400,11 @@
             color: var(--md-sys-color-primary);
             text-decoration: underline;
             overflow-wrap: break-word;
+        }
+
+        .check-details a:hover {
+            color: var(--md-sys-color-primary);
+            text-decoration: none;
         }
 
         .check-details a:focus-visible {
@@ -560,8 +569,9 @@
                             {% endif %}
                         </div>
                         {% if record.code_block and record.code_block is iterable and record.code_block is not string %}
-                        <pre class="code-block"><code>{% for line_num, line_text in record.code_block %}
-<span class="line-number">{{ line_num }}</span>{{ line_text }}{% endfor %}</code></pre>
+                        <pre class="code-block"><code>{% for line_num, line_text in record.code_block -%}
+<span class="line-number">{{ line_num }}</span>{{ line_text }}{% if not loop.last %}
+{% endif %}{% endfor %}</code></pre>
                         {% endif %}
                     </div>
                     {% endfor %}
