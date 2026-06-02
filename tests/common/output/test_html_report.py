@@ -578,7 +578,7 @@ def test_record_view_projection_shape() -> None:
     expected_keys = {
         "status", "check_id", "bc_check_id", "check_name", "check_class",
         "resource", "file_path", "file_line_range_str", "file_line_start",
-        "file_line_end", "severity", "code_block",
+        "file_line_end", "file_location_display", "severity", "code_block",
         "guideline", "evaluations", "description", "short_description",
         "details", "caller_file_path", "resource_address",
     }
@@ -620,6 +620,32 @@ def test_record_view_code_block_joined() -> None:
     record = _make_record(code_block=[(1, "a\n"), (2, "b\n")])
     view = HTML([])._record_view(record, "passed")
     assert view["code_block"] == "a\nb\n"
+
+
+def test_record_view_file_location_display_with_line_range() -> None:
+    """`file_location_display` joins file_path and the formatted line range."""
+    record = _make_record(file_path="/foo/main.tf", file_line_range=[5, 10])
+    view = HTML([])._record_view(record, "failed")
+    assert view["file_location_display"] == "/foo/main.tf:5-10"
+
+
+def test_record_view_file_location_display_without_line_range() -> None:
+    """When no line range is set, only the file path is included (no trailing colon)."""
+    record = _make_record(file_path="/foo/main.tf", file_line_range=[])
+    view = HTML([])._record_view(record, "passed")
+    assert view["file_location_display"] == "/foo/main.tf"
+
+
+def test_record_view_file_location_display_appears_in_html_once_per_record() -> None:
+    """Regression for DRY refactor: both inline file:line spots now read the same
+    pre-computed value so they render identically."""
+    record = _make_record(file_path="/x/y.tf", file_line_range=[7, 9], result=CheckResult.FAILED)
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+    # The failed record renders in both the results table row and the details
+    # meta row — so the location string must appear at least twice.
+    assert html_out.count("/x/y.tf:7-9") >= 2
 
 
 def test_report_view_counts_match() -> None:

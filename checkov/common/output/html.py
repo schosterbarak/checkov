@@ -192,6 +192,16 @@ class HTML:
         elif file_line_start is not None:
             file_line_range_str = f"{file_line_start}"
 
+        # Single source of truth for the "<file_path>[:<line_range>]" display
+        # string that previously appeared inline in two locations in the
+        # template (results table File column and details meta row). Keeping
+        # the format in Python lets it be unit-tested and changed in one
+        # place.
+        if record.file_path and file_line_range_str:
+            file_location_display = f"{record.file_path}:{file_line_range_str}"
+        else:
+            file_location_display = record.file_path or ""
+
         # ``record.code_block`` is a list of ``(line_num, line)`` tuples; join
         # the line strings to produce a single block of source code. The
         # original newlines are preserved because individual lines retain their
@@ -209,6 +219,7 @@ class HTML:
             "file_line_range_str": file_line_range_str,
             "file_line_start": file_line_start,
             "file_line_end": file_line_end,
+            "file_location_display": file_location_display,
             "severity": severity,
             "code_block": code_block,
             # Sanitize ``guideline`` to defend against ``javascript:`` / ``data:``

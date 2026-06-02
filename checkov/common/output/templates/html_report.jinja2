@@ -20,6 +20,25 @@
    CSS custom properties on ``:root`` so the colour palette can be
    tweaked in one place.
    ===================================================================== -#}
+{#- ---------------------------------------------------------------------
+    severity_badge(sev): single source of truth for the severity-badge
+    if/elif chain. Replaces two near-duplicate inline blocks (one in the
+    results-table column, one in the failed-check details meta row).
+    The chain mirrors the original table-column branches: the explicit
+    `none` keyword renders as a `none` badge; any other truthy value
+    falls through to the `unknown` styling with the raw severity text;
+    a missing severity renders as a mdash placeholder.
+    --------------------------------------------------------------------- -#}
+{%- macro severity_badge(sev) -%}
+  {%- if sev == 'critical' -%}<span class="badge badge-sev-critical">critical</span>
+  {%- elif sev == 'high' -%}<span class="badge badge-sev-high">high</span>
+  {%- elif sev == 'medium' -%}<span class="badge badge-sev-medium">medium</span>
+  {%- elif sev == 'low' -%}<span class="badge badge-sev-low">low</span>
+  {%- elif sev == 'none' -%}<span class="badge badge-sev-none">none</span>
+  {%- elif sev -%}<span class="badge badge-sev-unknown">{{ sev }}</span>
+  {%- else -%}<span class="badge badge-sev-unknown">&mdash;</span>
+  {%- endif -%}
+{%- endmacro -%}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -693,24 +712,10 @@
                 <td class="col-check-name">{{ record.check_name }}</td>
                 <td class="col-resource">{{ record.resource }}</td>
                 <td class="col-file">
-                  {{ record.file_path }}{% if record.file_line_range_str %}:{{ record.file_line_range_str }}{% endif %}
+                  {{ record.file_location_display }}
                 </td>
                 <td class="col-severity">
-                  {% if record.severity == 'critical' %}
-                    <span class="badge badge-sev-critical">critical</span>
-                  {% elif record.severity == 'high' %}
-                    <span class="badge badge-sev-high">high</span>
-                  {% elif record.severity == 'medium' %}
-                    <span class="badge badge-sev-medium">medium</span>
-                  {% elif record.severity == 'low' %}
-                    <span class="badge badge-sev-low">low</span>
-                  {% elif record.severity == 'none' %}
-                    <span class="badge badge-sev-none">none</span>
-                  {% elif record.severity %}
-                    <span class="badge badge-sev-unknown">{{ record.severity }}</span>
-                  {% else %}
-                    <span class="badge badge-sev-unknown">&mdash;</span>
-                  {% endif %}
+                  {{ severity_badge(record.severity) }}
                 </td>
               </tr>
 
@@ -728,24 +733,12 @@
                     <div class="details-meta">
                       <span class="meta-item">
                         <span class="meta-label">File</span>
-                        <span class="meta-value">{{ record.file_path }}{% if record.file_line_range_str %}:{{ record.file_line_range_str }}{% endif %}</span>
+                        <span class="meta-value">{{ record.file_location_display }}</span>
                       </span>
                       {% if record.severity %}
                       <span class="meta-item">
                         <span class="meta-label">Severity</span>
-                        {% if record.severity == 'critical' %}
-                          <span class="badge badge-sev-critical">critical</span>
-                        {% elif record.severity == 'high' %}
-                          <span class="badge badge-sev-high">high</span>
-                        {% elif record.severity == 'medium' %}
-                          <span class="badge badge-sev-medium">medium</span>
-                        {% elif record.severity == 'low' %}
-                          <span class="badge badge-sev-low">low</span>
-                        {% elif record.severity == 'none' %}
-                          <span class="badge badge-sev-none">none</span>
-                        {% else %}
-                          <span class="badge badge-sev-unknown">{{ record.severity }}</span>
-                        {% endif %}
+                        {{ severity_badge(record.severity) }}
                       </span>
                       {% endif %}
                       {% if record.caller_file_path %}
