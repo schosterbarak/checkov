@@ -2,10 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 from jinja2 import Environment, PackageLoader, TemplateNotFound, select_autoescape
 
 from checkov.version import version
+
+# URL schemes allowed to appear in <a href="..."> attributes rendered by the
+# HTML report. Jinja2 autoescape protects against HTML-character injection but
+# does NOT block protocol-level injection (``javascript:``, ``data:``, ``vbscript:``)
+# in URL attribute contexts. The ``guideline`` field on a ``Record`` is sourced
+# from Bridgecrew/custom-policy metadata and is therefore attacker-influenceable.
+# Any guideline value whose scheme is not in this allowlist is suppressed.
+_SAFE_URL_SCHEMES = frozenset({"http", "https"})
 
 if TYPE_CHECKING:
     from checkov.common.output.record import Record
@@ -17,6 +26,25 @@ _TOOL_NAME = "Checkov"
 _TOOL_URL = "https://www.checkov.io/"
 _DOCS_URL = "https://www.checkov.io/2.Basics/Installing%20Checkov.html"
 _TEMPLATE_NAME = "html_report.jinja2"
+
+
+def _safe_url(url: str | None) -> str | None:
+    """Return ``url`` if its scheme is ``http`` or ``https``, otherwise ``None``.
+
+    Used to sanitize values that flow into HTML ``href`` attributes. Returning
+    ``None`` lets the template's ``{% if record.guideline %}`` guard suppress
+    the link entirely when the URL is not safe.
+    """
+
+    if not url:
+        return url
+    try:
+        scheme = urlparse(url).scheme.lower()
+    except (ValueError, AttributeError):
+        return None
+    if scheme in _SAFE_URL_SCHEMES:
+        return url
+    return None
 
 
 class HTML:
@@ -191,7 +219,11 @@ class HTML:
             "severity": severity,
             "code_block": code_block,
             "code_block_lines": code_block_pairs,
-            "guideline": record.guideline,
+            # Sanitize ``guideline`` to defend against ``javascript:`` / ``data:``
+            # URI injection in the rendered ``<a href="...">`` element. See
+            # ``_safe_url`` above and tests/common/output/test_html_report.py
+            # for the regression case.
+            "guideline": _safe_url(record.guideline),
             "evaluations": record.evaluations,
             "description": record.description,
             "short_description": record.short_description,

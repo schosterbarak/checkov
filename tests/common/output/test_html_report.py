@@ -412,6 +412,81 @@ def test_html_escaping_for_check_name() -> None:
     assert "&lt;b&gt;injected&lt;/b&gt;" in html_out
 
 
+def test_javascript_uri_in_guideline_is_suppressed() -> None:
+    """Regression: ``javascript:`` URIs in ``guideline`` must not reach the rendered href.
+
+    Jinja2 autoescape protects against HTML-character injection but does NOT
+    sanitize protocol-level injection in ``href`` attributes. ``record.guideline``
+    is attacker-influenceable via Bridgecrew custom policies. ``_safe_url`` in
+    ``html.py`` must drop non-``http(s)`` schemes so the template's
+    ``{% if record.guideline %}`` guard suppresses the link entirely.
+    """
+
+    record = _make_record(
+        guideline="javascript:alert(document.cookie)",
+        result=CheckResult.FAILED,
+    )
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+
+    # The raw ``javascript:`` URI must never appear in the rendered output.
+    assert "javascript:" not in html_out
+    # Because the guideline was suppressed, the "View guideline" link is gone.
+    assert "View guideline" not in html_out
+
+
+def test_data_uri_in_guideline_is_suppressed() -> None:
+    """Same defense as ``test_javascript_uri_in_guideline_is_suppressed`` for ``data:`` URIs."""
+
+    record = _make_record(
+        guideline="data:text/html,<script>alert(1)</script>",
+        result=CheckResult.FAILED,
+    )
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+
+    assert "data:text/html" not in html_out
+    assert "View guideline" not in html_out
+
+
+def test_https_guideline_is_preserved() -> None:
+    """Sanity check: an ``https://`` guideline URL is rendered as a clickable link."""
+
+    record = _make_record(
+        guideline="https://docs.checkov.io/some-page",
+        result=CheckResult.FAILED,
+    )
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+
+    assert "https://docs.checkov.io/some-page" in html_out
+    assert "View guideline" in html_out
+
+
+def test_html_escaping_attribute_breakout_in_check_name() -> None:
+    """Regression: double-quote attribute breakout payload must be escaped in attribute contexts.
+
+    The ``rule-enable-jinja2-autoescape-always`` rule mandates regression
+    coverage for the ``" onerror="x`` attribute-injection vector in addition to
+    element-level ``<script>`` injection.
+    """
+
+    payload = '" onerror="alert(1)'
+    record = _make_record(check_name=payload, result=CheckResult.FAILED)
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+
+    # The raw double-quote attribute breakout payload must not appear verbatim.
+    assert payload not in html_out
+    assert 'onerror="alert(1)' not in html_out
+    # The double quote must be HTML-escaped (Jinja2 emits ``&#34;``).
+    assert "&#34;" in html_out or "&quot;" in html_out
+
+
 def test_multiple_reports_with_different_check_types() -> None:
     r1 = _make_report(check_type="terraform", passed=1)
     r2 = _make_report(check_type="kubernetes", failed=1)
