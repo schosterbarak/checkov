@@ -34,6 +34,7 @@ from checkov.common.models.enums import ErrorStatus, ParallelizationType
 from checkov.common.output.csv import CSVSBOM
 from checkov.common.output.cyclonedx import CycloneDX
 from checkov.common.output.gitlab_sast import GitLabSast
+from checkov.common.output.html import HTML
 from checkov.common.output.report import Report, merge_reports
 from checkov.common.output.sarif import Sarif
 from checkov.common.output.spdx import SPDX
@@ -67,6 +68,7 @@ OUTPUT_CHOICES = [
     "csv",
     "cyclonedx",
     "cyclonedx_json",
+    "html",
     "json",
     "junitxml",
     "github_failed_only",
@@ -407,6 +409,7 @@ class RunnerRegistry:
         cyclonedx_reports = []
         gitlab_reports = []
         spdx_reports = []
+        html_reports: list[Report] = []
         csv_sbom_report = CSVSBOM()
 
         try:
@@ -432,6 +435,11 @@ class RunnerRegistry:
                     cli_reports.append(report)
                 if "gitlab_sast" in config.output:
                     gitlab_reports.append(report)
+            if "html" in config.output:
+                # Include every report (even empty ones) so the rendered HTML
+                # accurately reflects the scan -- empty reports become a
+                # zero-record section rather than being silently dropped.
+                html_reports.append(report)
             if not report.is_empty() or len(report.extra_resources):
                 if any(cyclonedx in config.output for cyclonedx in CYCLONEDX_OUTPUTS):
                     cyclonedx_reports.append(report)
@@ -610,6 +618,17 @@ class RunnerRegistry:
             )
 
             data_outputs["spdx"] = spdx_output
+        if "html" in config.output:
+            html_renderer = HTML(reports=html_reports)
+            html_output = html_renderer.get_html()
+
+            self._print_to_console(
+                output_formats=output_formats,
+                output_format="html",
+                output=html_output,
+            )
+
+            data_outputs["html"] = html_output
         if "csv" in config.output:
             is_api_key = False
             if 'bc_api_key' in config and config.bc_api_key is not None:
@@ -627,6 +646,7 @@ class RunnerRegistry:
             'cyclonedx_json': 'results_cyclonedx.json',
             'gitlab_sast': 'results_gitlab_sast.json',
             'spdx': 'results_spdx.spdx',
+            'html': 'results_report.html',
         }
 
         if config.output_file_path:
