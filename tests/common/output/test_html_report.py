@@ -578,7 +578,7 @@ def test_record_view_projection_shape() -> None:
     expected_keys = {
         "status", "check_id", "bc_check_id", "check_name", "check_class",
         "resource", "file_path", "file_line_range_str", "file_line_start",
-        "file_line_end", "severity", "code_block", "code_block_lines",
+        "file_line_end", "severity", "code_block",
         "guideline", "evaluations", "description", "short_description",
         "details", "caller_file_path", "resource_address",
     }

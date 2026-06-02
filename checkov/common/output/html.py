@@ -202,8 +202,7 @@ class HTML:
         # the line strings to produce a single block of source code. The
         # original newlines are preserved because individual lines retain their
         # trailing ``\n`` characters.
-        code_block_pairs = list(record.code_block or [])
-        code_block = "".join(line for _line_num, line in code_block_pairs)
+        code_block = "".join(line for _line_num, line in (record.code_block or []))
 
         return {
             "status": status,
@@ -218,7 +217,6 @@ class HTML:
             "file_line_end": file_line_end,
             "severity": severity,
             "code_block": code_block,
-            "code_block_lines": code_block_pairs,
             # Sanitize ``guideline`` to defend against ``javascript:`` / ``data:``
             # URI injection in the rendered ``<a href="...">`` element. See
             # ``_safe_url`` above and tests/common/output/test_html_report.py
