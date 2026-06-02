@@ -25,7 +25,6 @@ The tests cover the eight cases described in the milestone delegation:
 from __future__ import annotations
 
 import html.parser
-import os
 import subprocess
 import sys
 import textwrap
