@@ -461,6 +461,14 @@
     background: transparent;
     white-space: pre;
   }
+  /* Syntax-highlight token classes. Colours map onto shadcn/ui design
+     tokens so the highlighted code keeps the same theme as the rest of
+     the report. The set is intentionally small (comment/string/number)
+     because we use a cross-language tokenizer — see ``_tokenize_code_block``
+     in checkov/common/output/html.py. */
+  .tk-comment { color: var(--muted-foreground); font-style: italic; }
+  .tk-string  { color: #047857; } /* shadcn emerald-700 — readable against light bg */
+  .tk-number  { color: #2563eb; } /* shadcn blue-600 */
   .details-section-title {
     font-size: 0.75rem;
     text-transform: uppercase;
@@ -776,7 +784,18 @@
                     {% if record.code_block %}
                     <div class="details-section">
                       <div class="details-section-title">Code</div>
-                      <pre class="code-block-wrap"><code class="code-block">{{ record.code_block }}</code></pre>
+                      {#- Syntax-highlighted via per-token <span class="tk-...">
+                          elements. Token classes come from a fixed Python
+                          enum, so they are trusted; token *text* still flows
+                          through Jinja2 autoescape and is NEVER marked safe.
+                          The whitespace-stripping {%- -%} controls keep the
+                          rendered <code> contents byte-identical to the
+                          original code_block so line numbers in CSS counters
+                          remain correct. #}
+                      <pre class="code-block-wrap"><code class="code-block"
+                        >{%- for token_class, token_text in record.code_block_tokens -%}
+                          {%- if token_class == 'text' -%}{{ token_text }}{%- else -%}<span class="tk-{{ token_class }}">{{ token_text }}</span>{%- endif -%}
+                        {%- endfor -%}</code></pre>
                     </div>
                     {% endif %}
 

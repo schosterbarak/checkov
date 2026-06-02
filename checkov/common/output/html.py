@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -45,6 +46,79 @@ def _safe_url(url: str | None) -> str | None:
     if scheme in _SAFE_URL_SCHEMES:
         return url
     return None
+
+
+# Minimal cross-language tokenizer for the failed-check code blocks. We
+# intentionally restrict it to the three categories that are well-defined
+# across every IaC language checkov scans (HCL, YAML, JSON, ARM/Bicep,
+# Dockerfile, Kubernetes manifests, shell snippets, etc.) and that have
+# unambiguous token boundaries even when languages are mixed in a single
+# block:
+#
+#   * comments   – ``#`` to EOL or ``//`` to EOL
+#   * strings    – matched ``"..."`` or ``'...'`` on a single line, with
+#                  backslash escapes honored
+#   * numbers    – integers and decimals not embedded in identifiers
+#
+# Any text that does not match a category becomes ``text`` tokens, which
+# are rendered as plain inline content. This deliberately small set
+# satisfies the PROJECT.md "syntax-highlighted with CSS" requirement
+# without taking on the maintenance burden of full language-specific
+# grammars or pulling in a JS / pygments dependency.
+#
+# IMPORTANT: tokens are emitted as ``(class_suffix, text)`` pairs and the
+# Jinja2 template renders each ``text`` through normal autoescape. We do
+# NOT mark any tokenizer output as ``Markup``/``|safe``, so the XSS
+# regression posture established by ``autoescape=select_autoescape(...)``
+# is preserved end-to-end.
+_TOKEN_PATTERN = re.compile(
+    r"""
+      (?P<comment>      \#[^\n]* | //[^\n]* )
+    | (?P<dq_string>    "(?:\\.|[^"\\\n])*" )
+    | (?P<sq_string>    '(?:\\.|[^'\\\n])*' )
+    | (?P<number>       \b\d+(?:\.\d+)?\b )
+    """,
+    re.VERBOSE,
+)
+
+# Map regex named group to a CSS class suffix. Group order in ``finditer``
+# results matches the alternation above.
+_TOKEN_GROUP_TO_CLASS: tuple[tuple[str, str], ...] = (
+    ("comment", "comment"),
+    ("dq_string", "string"),
+    ("sq_string", "string"),
+    ("number", "number"),
+)
+
+
+def _tokenize_code_block(code: str) -> list[tuple[str, str]]:
+    """Split ``code`` into a sequence of ``(class_suffix, text)`` tokens.
+
+    The class suffix is one of ``"comment"``, ``"string"``, ``"number"``,
+    or ``"text"`` for unclassified runs. Concatenating the ``text`` parts
+    in order reproduces ``code`` exactly — there is no character loss or
+    reordering. Empty input returns an empty list.
+    """
+
+    if not code:
+        return []
+
+    tokens: list[tuple[str, str]] = []
+    pos = 0
+    for match in _TOKEN_PATTERN.finditer(code):
+        start, end = match.span()
+        if start > pos:
+            tokens.append(("text", code[pos:start]))
+        token_class = "text"
+        for group_name, cls in _TOKEN_GROUP_TO_CLASS:
+            if match.group(group_name) is not None:
+                token_class = cls
+                break
+        tokens.append((token_class, code[start:end]))
+        pos = end
+    if pos < len(code):
+        tokens.append(("text", code[pos:]))
+    return tokens
 
 
 class HTML:
@@ -207,6 +281,7 @@ class HTML:
         # original newlines are preserved because individual lines retain their
         # trailing ``\n`` characters.
         code_block = "".join(line for _line_num, line in (record.code_block or []))
+        code_block_tokens = _tokenize_code_block(code_block)
 
         return {
             "status": status,
@@ -222,6 +297,7 @@ class HTML:
             "file_location_display": file_location_display,
             "severity": severity,
             "code_block": code_block,
+            "code_block_tokens": code_block_tokens,
             # Sanitize ``guideline`` to defend against ``javascript:`` / ``data:``
             # URI injection in the rendered ``<a href="...">`` element. See
             # ``_safe_url`` above and tests/common/output/test_html_report.py

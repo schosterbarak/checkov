@@ -15,7 +15,7 @@ import pytest
 
 from checkov.common.bridgecrew.severities import BcSeverities, Severities
 from checkov.common.models.enums import CheckResult
-from checkov.common.output.html import HTML
+from checkov.common.output.html import HTML, _tokenize_code_block
 from checkov.common.output.record import Record
 from checkov.common.output.report import Report
 from checkov.common.runners.runner_registry import OUTPUT_CHOICES, RunnerRegistry
@@ -579,6 +579,7 @@ def test_record_view_projection_shape() -> None:
         "status", "check_id", "bc_check_id", "check_name", "check_class",
         "resource", "file_path", "file_line_range_str", "file_line_start",
         "file_line_end", "file_location_display", "severity", "code_block",
+        "code_block_tokens",
         "guideline", "evaluations", "description", "short_description",
         "details", "caller_file_path", "resource_address",
     }
@@ -620,6 +621,132 @@ def test_record_view_code_block_joined() -> None:
     record = _make_record(code_block=[(1, "a\n"), (2, "b\n")])
     view = HTML([])._record_view(record, "passed")
     assert view["code_block"] == "a\nb\n"
+
+
+# ---------------------------------------------------------------------------
+# Tokenizer tests for the syntax-highlighting helper.
+# ---------------------------------------------------------------------------
+
+
+def test_tokenize_code_block_empty() -> None:
+    assert _tokenize_code_block("") == []
+
+
+def test_tokenize_code_block_plain_text() -> None:
+    tokens = _tokenize_code_block("resource aws")
+    assert tokens == [("text", "resource aws")]
+
+
+def test_tokenize_code_block_hash_comment() -> None:
+    tokens = _tokenize_code_block("foo # bar baz")
+    classes = [t[0] for t in tokens]
+    assert "comment" in classes
+    # The comment token must include the leading '#' and everything to EOL.
+    comment_text = next(text for cls, text in tokens if cls == "comment")
+    assert comment_text == "# bar baz"
+
+
+def test_tokenize_code_block_slash_comment() -> None:
+    tokens = _tokenize_code_block("foo // line comment")
+    comment_text = next(text for cls, text in tokens if cls == "comment")
+    assert comment_text == "// line comment"
+
+
+def test_tokenize_code_block_double_quoted_string() -> None:
+    tokens = _tokenize_code_block('name = "hello world"')
+    string_text = next(text for cls, text in tokens if cls == "string")
+    assert string_text == '"hello world"'
+
+
+def test_tokenize_code_block_single_quoted_string() -> None:
+    tokens = _tokenize_code_block("name = 'hello'")
+    string_text = next(text for cls, text in tokens if cls == "string")
+    assert string_text == "'hello'"
+
+
+def test_tokenize_code_block_number() -> None:
+    tokens = _tokenize_code_block("count = 42")
+    number_text = next(text for cls, text in tokens if cls == "number")
+    assert number_text == "42"
+
+
+def test_tokenize_code_block_decimal_number() -> None:
+    tokens = _tokenize_code_block("ratio = 3.14")
+    number_text = next(text for cls, text in tokens if cls == "number")
+    assert number_text == "3.14"
+
+
+def test_tokenize_code_block_preserves_input_exactly() -> None:
+    """Round-trip property: concatenating all token text must equal the input."""
+    sample = (
+        'resource "aws_s3_bucket" "b" {\n'
+        '  acl = "private" # default\n'
+        "  count = 1\n"
+        "  ratio = 2.5\n"
+        "}\n"
+    )
+    tokens = _tokenize_code_block(sample)
+    assert "".join(text for _cls, text in tokens) == sample
+
+
+def test_tokenize_code_block_does_not_emit_unknown_classes() -> None:
+    """Every emitted class must be one of the four documented values."""
+    sample = '# c\n"s" 1 plain'
+    tokens = _tokenize_code_block(sample)
+    allowed = {"text", "comment", "string", "number"}
+    assert {cls for cls, _ in tokens}.issubset(allowed)
+
+
+def test_tokenize_code_block_xss_payload_round_trips() -> None:
+    """Tokenizer must preserve HTML metacharacters verbatim — they must NOT be
+    swallowed, reordered, or wrapped in an HTML-aware token class. Coupled
+    with the template's autoescape behavior, this is the end-to-end XSS
+    guard for syntax-highlighted code blocks.
+    """
+    payload = "<script>alert(1)</script>"
+    tokens = _tokenize_code_block(payload)
+    # The tokenizer is HTML-blind: it only splits on its 4 token categories,
+    # so '<', '>', and '/' end up inside ``text`` tokens (the '1' is a
+    # number, which is fine — its class still routes through autoescape).
+    assert "".join(text for _cls, text in tokens) == payload
+    # No HTML-aware classes exist; every class is from the allowed set.
+    allowed = {"text", "comment", "string", "number"}
+    assert {cls for cls, _ in tokens}.issubset(allowed)
+    # Specifically, the angle-bracket characters never appear inside a
+    # 'string' or 'comment' token (which would be a tokenizer bug, not an
+    # XSS one, but worth pinning).
+    for cls, text in tokens:
+        if cls in ("string", "comment"):
+            assert "<" not in text and ">" not in text
+
+
+def test_rendered_code_block_includes_token_spans() -> None:
+    """End-to-end: a failed record's code_block is rendered with token spans."""
+    record = _make_record(
+        code_block=[(1, '  acl = "private" # comment\n')],
+        result=CheckResult.FAILED,
+    )
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+    assert '<span class="tk-string">&#34;private&#34;</span>' in html_out
+    assert '<span class="tk-comment"># comment</span>' in html_out
+
+
+def test_rendered_code_block_xss_payload_remains_escaped() -> None:
+    """XSS regression: a script payload in code_block must still be escaped
+    even after the tokenizer step (tokens flow through Jinja2 autoescape)."""
+    payload = "<script>alert('xss')</script>"
+    record = _make_record(
+        code_block=[(1, payload + "\n")],
+        result=CheckResult.FAILED,
+    )
+    report = Report("terraform")
+    report.add_record(record)
+    html_out = HTML([report]).get_html()
+    # Raw payload absent; escaped form present.
+    assert "<script>alert('xss')</script>" not in html_out
+    assert "&lt;script&gt;" in html_out
 
 
 def test_record_view_file_location_display_with_line_range() -> None:
