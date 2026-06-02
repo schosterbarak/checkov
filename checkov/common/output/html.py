@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from jinja2 import Environment, PackageLoader, TemplateNotFound, select_autoescape
+from jinja2 import Environment, PackageLoader, select_autoescape
 
 from checkov.version import version
 
@@ -91,13 +91,7 @@ class HTML:
         further changes.
         """
 
-        try:
-            template = self.env.get_template(_TEMPLATE_NAME)
-        except TemplateNotFound:
-            # Re-raise to make the cause obvious for callers; the template is
-            # expected to ship alongside this module.
-            raise
-
+        template = self.env.get_template(_TEMPLATE_NAME)
         context = self._build_context()
         return template.render(**context)
 
