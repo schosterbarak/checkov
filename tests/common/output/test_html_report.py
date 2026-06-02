@@ -487,6 +487,33 @@ def test_html_escaping_attribute_breakout_in_check_name() -> None:
     assert "&#34;" in html_out or "&quot;" in html_out
 
 
+def test_results_table_headers_are_sortable() -> None:
+    """Regression for PROJECT.md +++5+++: each results-table column must be sortable.
+
+    The contract requires the table to be "sortable by columns via minimal
+    inline JavaScript". This test verifies the rendered HTML exposes
+    ``data-sort-key`` on every results column header and includes a
+    ``sortTableBy`` function in the inline JS so the click handler can sort
+    rows in place.
+    """
+
+    report = _make_report(check_type="terraform", passed=1, failed=1, skipped=1)
+    html_out = HTML([report]).get_html()
+
+    # All six columns must declare a sort key.
+    for sort_key in ("status", "check-id", "check-name", "resource", "file", "severity"):
+        assert f'data-sort-key="{sort_key}"' in html_out, (
+            f"Results table header missing data-sort-key={sort_key}"
+        )
+
+    # The inline JS must include the sort function and a click handler that
+    # binds it to header clicks.
+    assert "sortTableBy" in html_out
+    assert "onHeaderClick" in html_out
+    # The header must be keyboard-accessible (tabindex set in init()).
+    assert 'setAttribute("tabindex"' in html_out
+
+
 def test_multiple_reports_with_different_check_types() -> None:
     r1 = _make_report(check_type="terraform", passed=1)
     r2 = _make_report(check_type="kubernetes", failed=1)

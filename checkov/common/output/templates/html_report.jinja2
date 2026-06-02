@@ -311,6 +311,31 @@
     padding: 0.75rem 0.875rem;
     border-bottom: 1px solid var(--border);
   }
+  /* Sortable header columns — clickable, with a chevron indicating
+     the current sort direction (ascending/descending). The neutral
+     chevron is shown by default; the active column shows the
+     direction-specific chevron based on ``aria-sort``. */
+  table.results thead th[data-sort-key] {
+    cursor: pointer;
+    user-select: none;
+  }
+  table.results thead th[data-sort-key]:hover { color: var(--foreground); }
+  table.results thead th[data-sort-key] .sort-indicator {
+    display: inline-block;
+    margin-left: 0.375rem;
+    font-size: 0.625rem;
+    color: var(--muted-foreground);
+    opacity: 0.5;
+  }
+  table.results thead th[aria-sort="ascending"] .sort-indicator,
+  table.results thead th[aria-sort="descending"] .sort-indicator {
+    opacity: 1;
+    color: var(--foreground);
+  }
+  table.results thead th[aria-sort="ascending"] .sort-indicator::before { content: "\25B2"; }
+  table.results thead th[aria-sort="descending"] .sort-indicator::before { content: "\25BC"; }
+  table.results thead th[data-sort-key]:not([aria-sort]) .sort-indicator::before,
+  table.results thead th[aria-sort="none"] .sort-indicator::before { content: "\25B4\25BE"; }
   table.results tbody td {
     padding: 0.75rem 0.875rem;
     border-bottom: 1px solid var(--border);
@@ -621,12 +646,12 @@
         <table class="results" role="table">
           <thead>
             <tr>
-              <th scope="col">Status</th>
-              <th scope="col">Check ID</th>
-              <th scope="col">Check Name</th>
-              <th scope="col">Resource</th>
-              <th scope="col">File</th>
-              <th scope="col">Severity</th>
+              <th scope="col" data-sort-key="status">Status<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="check-id">Check ID<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="check-name">Check Name<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="resource">Resource<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="file">File<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="severity">Severity<span class="sort-indicator" aria-hidden="true"></span></th>
             </tr>
           </thead>
           <tbody>
@@ -907,6 +932,101 @@
     }
   }
 
+  // Column index for each sortable header in render order. Must stay in
+  // sync with the <th data-sort-key="..."> attributes in the template.
+  var SORT_COLUMN_INDEX = {
+    "status": 0,
+    "check-id": 1,
+    "check-name": 2,
+    "resource": 3,
+    "file": 4,
+    "severity": 5
+  };
+
+  // Severity ranking used when sorting the Severity column so that
+  // "critical" > "high" > ... > "" rather than alphabetic order.
+  var SEVERITY_RANK = {
+    "critical": 5,
+    "high": 4,
+    "medium": 3,
+    "low": 2,
+    "none": 1,
+    "": 0
+  };
+
+  function cellSortValue(row, sortKey, columnIndex) {
+    if (sortKey === "severity") {
+      var sev = (row.getAttribute("data-severity") || "").toLowerCase();
+      return SEVERITY_RANK.hasOwnProperty(sev) ? SEVERITY_RANK[sev] : -1;
+    }
+    if (sortKey === "status") {
+      return (row.getAttribute("data-status") || "").toLowerCase();
+    }
+    var cell = row.cells && row.cells[columnIndex];
+    if (!cell) { return ""; }
+    return (cell.textContent || "").trim().toLowerCase();
+  }
+
+  function compareSortValues(a, b) {
+    if (typeof a === "number" && typeof b === "number") {
+      return a - b;
+    }
+    if (a < b) { return -1; }
+    if (a > b) { return 1; }
+    return 0;
+  }
+
+  function sortTableBy(table, sortKey, direction) {
+    var columnIndex = SORT_COLUMN_INDEX[sortKey];
+    if (columnIndex === undefined) { return; }
+    var tbody = table.tBodies && table.tBodies[0];
+    if (!tbody) { return; }
+
+    // Collect each result row together with its paired details row (if any).
+    var rows = tbody.rows;
+    var groups = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row.classList.contains("result-row")) { continue; }
+      var group = { row: row, details: null, value: cellSortValue(row, sortKey, columnIndex) };
+      var next = row.nextElementSibling;
+      if (next && next.classList.contains("details-row")) {
+        group.details = next;
+      }
+      groups.push(group);
+    }
+
+    var multiplier = direction === "descending" ? -1 : 1;
+    groups.sort(function (g1, g2) {
+      return multiplier * compareSortValues(g1.value, g2.value);
+    });
+
+    // Re-insert in sorted order. appendChild moves nodes already in the DOM.
+    for (var j = 0; j < groups.length; j++) {
+      tbody.appendChild(groups[j].row);
+      if (groups[j].details) { tbody.appendChild(groups[j].details); }
+    }
+  }
+
+  function onHeaderClick(event) {
+    var th = event.currentTarget;
+    var sortKey = th.getAttribute("data-sort-key");
+    if (!sortKey) { return; }
+    var table = th.closest("table.results");
+    if (!table) { return; }
+
+    var current = th.getAttribute("aria-sort");
+    var direction = current === "ascending" ? "descending" : "ascending";
+
+    // Clear sort state on sibling headers so only one column shows direction.
+    var siblings = table.querySelectorAll("thead th[data-sort-key]");
+    for (var i = 0; i < siblings.length; i++) {
+      siblings[i].setAttribute("aria-sort", "none");
+    }
+    th.setAttribute("aria-sort", direction);
+    sortTableBy(table, sortKey, direction);
+  }
+
   function init() {
     var filterButtons = document.querySelectorAll(".filter-btn");
     for (var i = 0; i < filterButtons.length; i++) {
@@ -915,6 +1035,20 @@
     var expandButtons = document.querySelectorAll(".expand-toggle");
     for (var j = 0; j < expandButtons.length; j++) {
       expandButtons[j].addEventListener("click", onExpandClick);
+    }
+    var sortHeaders = document.querySelectorAll("table.results thead th[data-sort-key]");
+    for (var k = 0; k < sortHeaders.length; k++) {
+      sortHeaders[k].addEventListener("click", onHeaderClick);
+      // Keyboard accessibility: ENTER/SPACE on a focused header triggers sort.
+      sortHeaders[k].setAttribute("tabindex", "0");
+      sortHeaders[k].setAttribute("role", "columnheader");
+      sortHeaders[k].setAttribute("aria-sort", "none");
+      sortHeaders[k].addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onHeaderClick({ currentTarget: e.currentTarget });
+        }
+      });
     }
   }
 
