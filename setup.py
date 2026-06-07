@@ -110,7 +110,8 @@ setup(
         "asteval==1.0.6",
         "urllib3>=1.26.20",
         "platformdirs>=4.0.0,<5.0.0",
-        "ecdsa>=0.19.0,<1.0.0"
+        "ecdsa>=0.19.0,<1.0.0",
+        "Jinja2>=3.1.0,<4.0.0"
     ],
     dependency_links=[],  # keep it empty, needed for pipenv-setup
     license="Apache License 2.0",
@@ -134,6 +135,7 @@ setup(
     package_data={
         "checkov": ["py.typed"],
         "checkov.common.util.templates": ["*.jinja2"],
+        "checkov.common.output.templates": ["*.jinja2"],
         "checkov.ansible.checks.graph_checks": ["**/*.json"],
         "checkov.arm.checks.graph_checks": ["**/*.json"],
         "checkov.bicep.checks.graph_checks": ["**/*.json"],

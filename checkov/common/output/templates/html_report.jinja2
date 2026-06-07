@@ -1,0 +1,1076 @@
+{# =====================================================================
+   Checkov HTML scan report — self-contained shadcn/ui-styled document.
+
+   This template is rendered by :class:`checkov.common.output.html.HTML`.
+   The context shape it expects is documented on ``HTML._build_context``;
+   in short:
+
+       reports               : list of report views (see HTML._report_view)
+       total_passed/failed/skipped/parsing_errors/resources/checks : int
+       checkov_version       : str  (e.g. "3.2.532")
+       generated_at          : str  (ISO8601 UTC)
+       tool_name / tool_url  : str  ("Checkov" / "https://www.checkov.io/")
+       docs_url              : str
+
+   The Jinja2 Environment used to render this template has autoescape
+   enabled. **Do not use the ``|safe`` filter on user-controlled data.**
+
+   The document inlines all CSS and JS — no external CDN, font, or
+   image references are made. shadcn/ui design tokens are inlined as
+   CSS custom properties on ``:root`` so the colour palette can be
+   tweaked in one place.
+   ===================================================================== -#}
+{#- ---------------------------------------------------------------------
+    severity_badge(sev): single source of truth for the severity-badge
+    if/elif chain. Replaces two near-duplicate inline blocks (one in the
+    results-table column, one in the failed-check details meta row).
+    The chain mirrors the original table-column branches: the explicit
+    `none` keyword renders as a `none` badge; any other truthy value
+    falls through to the `unknown` styling with the raw severity text;
+    a missing severity renders as a mdash placeholder.
+    --------------------------------------------------------------------- -#}
+{%- macro severity_badge(sev) -%}
+  {%- if sev == 'critical' -%}<span class="badge badge-sev-critical">critical</span>
+  {%- elif sev == 'high' -%}<span class="badge badge-sev-high">high</span>
+  {%- elif sev == 'medium' -%}<span class="badge badge-sev-medium">medium</span>
+  {%- elif sev == 'low' -%}<span class="badge badge-sev-low">low</span>
+  {%- elif sev == 'none' -%}<span class="badge badge-sev-none">none</span>
+  {%- elif sev -%}<span class="badge badge-sev-unknown">{{ sev }}</span>
+  {%- else -%}<span class="badge badge-sev-unknown">&mdash;</span>
+  {%- endif -%}
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkov Scan Report</title>
+<style>
+  /* ------------------------------------------------------------------
+     shadcn/ui design tokens (neutral light theme).
+
+     Values mirror the defaults from the shadcn/ui ``new-york`` style
+     palette as documented at https://ui.shadcn.com/themes — primary
+     ``oklch(...)`` values are listed alongside an sRGB fallback in a
+     comment for readers without OKLCH-aware browsers.
+     ------------------------------------------------------------------ */
+  :root {
+    --background: oklch(1 0 0);            /* #ffffff */
+    --foreground: oklch(0.145 0 0);        /* #0a0a0a */
+    --card: oklch(1 0 0);                  /* #ffffff */
+    --card-foreground: oklch(0.145 0 0);   /* #0a0a0a */
+    --muted: oklch(0.97 0 0);              /* #f5f5f5 */
+    --muted-foreground: oklch(0.556 0 0);  /* #737373 */
+    --border: oklch(0.922 0 0);            /* #e5e5e5 */
+    --input: oklch(0.922 0 0);             /* #e5e5e5 */
+    --primary: oklch(0.205 0 0);           /* #171717 */
+    --primary-foreground: oklch(0.985 0 0);/* #fafafa */
+    --secondary: oklch(0.97 0 0);          /* #f5f5f5 */
+    --secondary-foreground: oklch(0.205 0 0); /* #171717 */
+    --accent: oklch(0.97 0 0);             /* #f5f5f5 */
+    --accent-foreground: oklch(0.205 0 0); /* #171717 */
+    --destructive: oklch(0.577 0.245 27.325); /* #dc2626 */
+    --destructive-foreground: oklch(0.985 0 0); /* #fafafa */
+    /* shadcn does not define ``--success`` or ``--warning`` itself;
+       these match the badge colours we use for passed / parsing-error
+       status counts and are kept simple hex values. */
+    --success: #16a34a;
+    --success-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #ffffff;
+    --ring: oklch(0.708 0 0);              /* #a3a3a3 */
+    --radius: 0.625rem;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas,
+                 "Liberation Mono", "Courier New", monospace;
+  }
+
+  /* Provide explicit sRGB fallbacks for the few tokens that get
+     applied directly (rather than just on cards), so older browsers
+     without OKLCH support degrade gracefully. */
+  @supports not (color: oklch(0 0 0)) {
+    :root {
+      --background: #ffffff;
+      --foreground: #0a0a0a;
+      --card: #ffffff;
+      --card-foreground: #0a0a0a;
+      --muted: #f5f5f5;
+      --muted-foreground: #737373;
+      --border: #e5e5e5;
+      --input: #e5e5e5;
+      --primary: #171717;
+      --primary-foreground: #fafafa;
+      --secondary: #f5f5f5;
+      --secondary-foreground: #171717;
+      --accent: #f5f5f5;
+      --accent-foreground: #171717;
+      --destructive: #dc2626;
+      --destructive-foreground: #fafafa;
+      --ring: #a3a3a3;
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     Base typography and layout.
+     ------------------------------------------------------------------ */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 3rem 1.5rem;
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  a:hover { color: var(--foreground); }
+
+  h1, h2, h3, h4 {
+    color: var(--foreground);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1rem; }
+
+  /* ------------------------------------------------------------------
+     Header.
+     ------------------------------------------------------------------ */
+  header.report-header {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header.report-header .subtitle {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    margin-top: 0.375rem;
+  }
+
+  /* ------------------------------------------------------------------
+     Summary dashboard — card grid.
+     ------------------------------------------------------------------ */
+  section.summary {
+    margin-top: 1.5rem;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.875rem;
+  }
+  .card {
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .card .card-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .card .card-value {
+    font-size: 1.875rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .card .card-value.with-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  /* ------------------------------------------------------------------
+     Badges (status pills).
+     ------------------------------------------------------------------ */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .badge-success     { background: var(--success);     color: var(--success-foreground); }
+  .badge-destructive { background: var(--destructive); color: var(--destructive-foreground); }
+  .badge-muted       { background: var(--muted);       color: var(--muted-foreground); border-color: var(--border); }
+  .badge-warning     { background: var(--warning);     color: var(--warning-foreground); }
+  .badge-outline     { background: transparent;        color: var(--foreground); border-color: var(--border); }
+
+  /* Severity-specific badges — colour-coded but otherwise neutral. */
+  .badge-sev-critical { background: var(--destructive); color: var(--destructive-foreground); }
+  .badge-sev-high     { background: #ea580c;            color: #ffffff; }
+  .badge-sev-medium   { background: var(--warning);     color: var(--warning-foreground); }
+  .badge-sev-low      { background: #2563eb;            color: #ffffff; }
+  .badge-sev-none     { background: var(--muted);       color: var(--muted-foreground); border-color: var(--border); }
+  .badge-sev-unknown  { background: var(--muted);       color: var(--muted-foreground); border-color: var(--border); }
+
+  /* ------------------------------------------------------------------
+     Filter button row (shadcn Button styling).
+     ------------------------------------------------------------------ */
+  section.filters {
+    margin-top: 1.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  section.filters .filter-label {
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+    margin-right: 0.25rem;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: calc(var(--radius) - 0.25rem);
+    padding: 0.4375rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--foreground);
+    cursor: pointer;
+    transition: background-color 100ms ease, color 100ms ease, border-color 100ms ease;
+    font-family: inherit;
+  }
+  .btn:hover { background: var(--accent); color: var(--accent-foreground); }
+  .btn:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  .btn[aria-pressed="true"] {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+  }
+  .btn[aria-pressed="true"]:hover {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .btn .btn-count {
+    font-variant-numeric: tabular-nums;
+    color: inherit;
+    opacity: 0.85;
+  }
+
+  /* ------------------------------------------------------------------
+     Per-report section.
+     ------------------------------------------------------------------ */
+  section.report-section {
+    margin-top: 2.25rem;
+  }
+  section.report-section .report-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
+  }
+  section.report-section .report-heading h2 {
+    margin: 0;
+  }
+  section.report-section .report-heading .report-counts {
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+  }
+
+  /* ------------------------------------------------------------------
+     Results table — shadcn Table styling.
+     ------------------------------------------------------------------ */
+  .table-wrapper {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--card);
+  }
+  table.results {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  table.results thead th {
+    background: var(--muted);
+    color: var(--muted-foreground);
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--border);
+  }
+  /* Sortable header columns — clickable, with a chevron indicating
+     the current sort direction (ascending/descending). The neutral
+     chevron is shown by default; the active column shows the
+     direction-specific chevron based on ``aria-sort``. */
+  table.results thead th[data-sort-key] {
+    cursor: pointer;
+    user-select: none;
+  }
+  table.results thead th[data-sort-key]:hover { color: var(--foreground); }
+  table.results thead th[data-sort-key] .sort-indicator {
+    display: inline-block;
+    margin-left: 0.375rem;
+    font-size: 0.625rem;
+    color: var(--muted-foreground);
+    opacity: 0.5;
+  }
+  table.results thead th[aria-sort="ascending"] .sort-indicator,
+  table.results thead th[aria-sort="descending"] .sort-indicator {
+    opacity: 1;
+    color: var(--foreground);
+  }
+  table.results thead th[aria-sort="ascending"] .sort-indicator::before { content: "\25B2"; }
+  table.results thead th[aria-sort="descending"] .sort-indicator::before { content: "\25BC"; }
+  table.results thead th[data-sort-key]:not([aria-sort]) .sort-indicator::before,
+  table.results thead th[aria-sort="none"] .sort-indicator::before { content: "\25B4\25BE"; }
+  table.results tbody td {
+    padding: 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.results tbody tr:last-child td { border-bottom: none; }
+
+  table.results tbody tr.result-row td.col-check-id {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+  table.results tbody tr.result-row td.col-resource,
+  table.results tbody tr.result-row td.col-file {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    word-break: break-all;
+  }
+  table.results tbody tr.result-row td.col-status,
+  table.results tbody tr.result-row td.col-severity {
+    white-space: nowrap;
+  }
+
+  /* Expand toggle button used on failed rows. */
+  .expand-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    margin-right: 0.375rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: var(--background);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+  .expand-toggle:hover { background: var(--accent); color: var(--accent-foreground); }
+  .expand-toggle .chev-closed { display: inline; }
+  .expand-toggle .chev-open { display: none; }
+  .expand-toggle[aria-expanded="true"] .chev-closed { display: none; }
+  .expand-toggle[aria-expanded="true"] .chev-open { display: inline; }
+
+  /* Details row is collapsed by default. The expand toggle flips
+     ``aria-expanded`` on the toggle button which we mirror onto the
+     details row via JS by toggling ``.open``. */
+  tr.details-row { display: none; }
+  tr.details-row.open { display: table-row; }
+  tr.details-row > td {
+    background: var(--muted);
+    padding: 1rem 1.25rem 1.25rem 1.25rem;
+  }
+  .details-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+  .details-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    align-items: center;
+    font-size: 0.8125rem;
+  }
+  .details-meta .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .details-meta .meta-label {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .details-meta .meta-value {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    word-break: break-all;
+  }
+  .details-description {
+    color: var(--foreground);
+    font-size: 0.875rem;
+  }
+  pre.code-block-wrap {
+    margin: 0;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 0.125rem);
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--foreground);
+  }
+  pre.code-block-wrap code.code-block {
+    font-family: inherit;
+    color: inherit;
+    background: transparent;
+    white-space: pre;
+  }
+  /* Syntax-highlight token classes. Colours map onto shadcn/ui design
+     tokens so the highlighted code keeps the same theme as the rest of
+     the report. The set is intentionally small (comment/string/number)
+     because we use a cross-language tokenizer — see ``_tokenize_code_block``
+     in checkov/common/output/html.py. */
+  .tk-comment { color: var(--muted-foreground); font-style: italic; }
+  .tk-string  { color: #047857; } /* shadcn emerald-700 — readable against light bg */
+  .tk-number  { color: #2563eb; } /* shadcn blue-600 */
+  .details-section-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted-foreground);
+    margin: 0 0 0.375rem 0;
+    font-weight: 500;
+  }
+  .details-section ul {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+  .details-section dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0;
+    font-size: 0.8125rem;
+  }
+  .details-section dl dt {
+    font-family: var(--font-mono);
+    color: var(--muted-foreground);
+  }
+  .details-section dl dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    word-break: break-all;
+  }
+
+  /* ------------------------------------------------------------------
+     Hidden state used by the filter JS.
+     ------------------------------------------------------------------ */
+  .result-row.hidden,
+  .details-row.hidden { display: none !important; }
+
+  /* ------------------------------------------------------------------
+     Empty-state styling.
+     ------------------------------------------------------------------ */
+  .empty-state {
+    margin: 0;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    background: var(--card);
+  }
+  section.empty-top {
+    margin-top: 2.25rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--muted-foreground);
+  }
+
+  /* ------------------------------------------------------------------
+     Parsing errors section.
+     ------------------------------------------------------------------ */
+  section.parsing-errors {
+    margin-top: 2.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    background: var(--card);
+  }
+  section.parsing-errors h2 {
+    margin-bottom: 0.75rem;
+  }
+  section.parsing-errors .parsing-group {
+    margin-top: 1rem;
+  }
+  section.parsing-errors .parsing-group h3 {
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+    margin-bottom: 0.25rem;
+  }
+  section.parsing-errors ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--foreground);
+  }
+
+  /* ------------------------------------------------------------------
+     Footer.
+     ------------------------------------------------------------------ */
+  footer.report-footer {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+  }
+  footer.report-footer a { color: var(--muted-foreground); }
+  footer.report-footer a:hover { color: var(--foreground); }
+</style>
+</head>
+<body>
+
+{# -----------------------------------------------------------------
+   Header
+   ----------------------------------------------------------------- #}
+<header class="report-header">
+  <h1>Checkov Scan Report</h1>
+  <div class="subtitle">
+    Generated by {{ tool_name }} v{{ checkov_version }} at {{ generated_at }}
+  </div>
+</header>
+
+<main>
+
+  {# -----------------------------------------------------------------
+     Summary dashboard
+     ----------------------------------------------------------------- #}
+  <section class="summary" aria-label="Scan summary">
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-label">Total Checks</div>
+        <div class="card-value">{{ total_checks }}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Passed</div>
+        <div class="card-value with-badge">
+          <span>{{ total_passed }}</span>
+          <span class="badge badge-success">passed</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Failed</div>
+        <div class="card-value with-badge">
+          <span>{{ total_failed }}</span>
+          <span class="badge badge-destructive">failed</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Skipped</div>
+        <div class="card-value with-badge">
+          <span>{{ total_skipped }}</span>
+          <span class="badge badge-muted">skipped</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Parsing Errors</div>
+        <div class="card-value with-badge">
+          <span>{{ total_parsing_errors }}</span>
+          {% if total_parsing_errors > 0 %}
+          <span class="badge badge-warning">errors</span>
+          {% else %}
+          <span class="badge badge-muted">none</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Resources</div>
+        <div class="card-value">{{ total_resources }}</div>
+      </div>
+    </div>
+  </section>
+
+  {# -----------------------------------------------------------------
+     Filter controls. The JS at the bottom of the body reads
+     ``data-filter`` and toggles the ``.hidden`` class on result rows.
+     ----------------------------------------------------------------- #}
+  <section class="filters" aria-label="Status filter">
+    <span class="filter-label">Filter:</span>
+    <button type="button" class="btn filter-btn" data-filter="all" aria-pressed="true">
+      All <span class="btn-count">({{ total_checks }})</span>
+    </button>
+    <button type="button" class="btn filter-btn" data-filter="passed" aria-pressed="false">
+      Passed <span class="btn-count">({{ total_passed }})</span>
+    </button>
+    <button type="button" class="btn filter-btn" data-filter="failed" aria-pressed="false">
+      Failed <span class="btn-count">({{ total_failed }})</span>
+    </button>
+    <button type="button" class="btn filter-btn" data-filter="skipped" aria-pressed="false">
+      Skipped <span class="btn-count">({{ total_skipped }})</span>
+    </button>
+  </section>
+
+  {# -----------------------------------------------------------------
+     Reports.
+
+     ``reports`` is failed-first within each report (see
+     ``HTML._report_view``). Each row carries ``data-status`` so the
+     filter JS can hide/show rows without re-rendering.
+     ----------------------------------------------------------------- #}
+  {% if reports %}
+    {% for report in reports %}
+    <section class="report-section" data-check-type="{{ report.check_type }}">
+      <div class="report-heading">
+        <h2>{{ report.check_type }}</h2>
+        <span class="report-counts">
+          {{ report.passed_count }} passed, {{ report.failed_count }} failed, {{ report.skipped_count }} skipped &middot;
+          {{ report.resource_count }} resource{% if report.resource_count != 1 %}s{% endif %}
+        </span>
+      </div>
+
+      {% if report.records %}
+      <div class="table-wrapper">
+        <table class="results" role="table">
+          <thead>
+            <tr>
+              <th scope="col" data-sort-key="status">Status<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="check-id">Check ID<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="check-name">Check Name<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="resource">Resource<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="file">File<span class="sort-indicator" aria-hidden="true"></span></th>
+              <th scope="col" data-sort-key="severity">Severity<span class="sort-indicator" aria-hidden="true"></span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in report.records %}
+              {# Stable per-row identifier — combines report check_type,
+                 record index, and check_id to produce a unique id usable
+                 for ARIA controls without leaking unescaped data. #}
+              {% set row_id = "row-" ~ loop.index0 ~ "-" ~ report.check_type %}
+              <tr class="result-row{% if record.status == 'failed' %} has-details{% endif %}"
+                  data-status="{{ record.status }}"
+                  data-severity="{{ record.severity }}">
+                <td class="col-status">
+                  {% if record.status == 'passed' %}
+                    <span class="badge badge-success">passed</span>
+                  {% elif record.status == 'failed' %}
+                    <span class="badge badge-destructive">failed</span>
+                  {% else %}
+                    <span class="badge badge-muted">skipped</span>
+                  {% endif %}
+                </td>
+                <td class="col-check-id">
+                  {% if record.status == 'failed' %}
+                    <button type="button"
+                            class="expand-toggle"
+                            aria-expanded="false"
+                            aria-controls="{{ row_id }}-details"
+                            aria-label="Toggle details">
+                      <span class="chev-closed" aria-hidden="true">&#9656;</span>
+                      <span class="chev-open" aria-hidden="true">&#9662;</span>
+                    </button>
+                  {% endif %}
+                  {{ record.check_id }}
+                  {% if record.bc_check_id %}
+                    <div class="card-label" style="font-family: var(--font-sans); margin-top:0.125rem;">
+                      {{ record.bc_check_id }}
+                    </div>
+                  {% endif %}
+                </td>
+                <td class="col-check-name">{{ record.check_name }}</td>
+                <td class="col-resource">{{ record.resource }}</td>
+                <td class="col-file">
+                  {{ record.file_location_display }}
+                </td>
+                <td class="col-severity">
+                  {{ severity_badge(record.severity) }}
+                </td>
+              </tr>
+
+              {# Sibling details row — only emitted for failed records.
+                 Inherits the same ``data-status`` so the filter JS keeps
+                 it paired with its parent when toggling visibility. #}
+              {% if record.status == 'failed' %}
+              <tr class="details-row"
+                  id="{{ row_id }}-details"
+                  data-status="{{ record.status }}"
+                  data-severity="{{ record.severity }}">
+                <td colspan="6">
+                  <div class="details-grid">
+                    {# Meta row: file, severity, optional caller/resource address. #}
+                    <div class="details-meta">
+                      <span class="meta-item">
+                        <span class="meta-label">File</span>
+                        <span class="meta-value">{{ record.file_location_display }}</span>
+                      </span>
+                      {% if record.severity %}
+                      <span class="meta-item">
+                        <span class="meta-label">Severity</span>
+                        {{ severity_badge(record.severity) }}
+                      </span>
+                      {% endif %}
+                      {% if record.caller_file_path %}
+                      <span class="meta-item">
+                        <span class="meta-label">Caller</span>
+                        <span class="meta-value">{{ record.caller_file_path }}</span>
+                      </span>
+                      {% endif %}
+                      {% if record.resource_address %}
+                      <span class="meta-item">
+                        <span class="meta-label">Address</span>
+                        <span class="meta-value">{{ record.resource_address }}</span>
+                      </span>
+                      {% endif %}
+                      {% if record.check_class %}
+                      <span class="meta-item">
+                        <span class="meta-label">Class</span>
+                        <span class="meta-value">{{ record.check_class }}</span>
+                      </span>
+                      {% endif %}
+                    </div>
+
+                    {# Optional human-readable description fields. #}
+                    {% if record.short_description %}
+                    <div class="details-description"><strong>{{ record.short_description }}</strong></div>
+                    {% endif %}
+                    {% if record.description %}
+                    <div class="details-description">{{ record.description }}</div>
+                    {% endif %}
+
+                    {# Source code block. Always render so users can see
+                       which lines were flagged, even if the snippet is
+                       empty (rare). The ``code_block`` joins the raw
+                       lines; autoescape protects against HTML injection. #}
+                    {% if record.code_block %}
+                    <div class="details-section">
+                      <div class="details-section-title">Code</div>
+                      {#- Syntax-highlighted via per-token <span class="tk-...">
+                          elements. Token classes come from a fixed Python
+                          enum, so they are trusted; token *text* still flows
+                          through Jinja2 autoescape and is NEVER marked safe.
+                          The whitespace-stripping {%- -%} controls keep the
+                          rendered <code> contents byte-identical to the
+                          original code_block so line numbers in CSS counters
+                          remain correct. #}
+                      <pre class="code-block-wrap"><code class="code-block"
+                        >{%- for token_class, token_text in record.code_block_tokens -%}
+                          {%- if token_class == 'text' -%}{{ token_text }}{%- else -%}<span class="tk-{{ token_class }}">{{ token_text }}</span>{%- endif -%}
+                        {%- endfor -%}</code></pre>
+                    </div>
+                    {% endif %}
+
+                    {# Detail bullets, when the policy yields them. #}
+                    {% if record.details %}
+                    <div class="details-section">
+                      <div class="details-section-title">Details</div>
+                      <ul>
+                        {% for detail in record.details %}
+                        <li>{{ detail }}</li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                    {% endif %}
+
+                    {# Evaluations — render as a definition list when it
+                       is a non-empty dict. Other shapes are coerced via
+                       ``string`` for safety. #}
+                    {% if record.evaluations %}
+                    <div class="details-section">
+                      <div class="details-section-title">Evaluations</div>
+                      {% if record.evaluations is mapping %}
+                      <dl>
+                        {% for ev_key, ev_value in record.evaluations.items() %}
+                        <dt>{{ ev_key }}</dt>
+                        <dd>{{ ev_value }}</dd>
+                        {% endfor %}
+                      </dl>
+                      {% else %}
+                      <pre class="code-block-wrap"><code class="code-block">{{ record.evaluations }}</code></pre>
+                      {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {# Guideline link. ``target="_blank"`` + rel pair to
+                       avoid window.opener leakage. #}
+                    {% if record.guideline %}
+                    <div class="details-section">
+                      <div class="details-section-title">Guideline</div>
+                      <a href="{{ record.guideline }}" target="_blank" rel="noopener noreferrer">View guideline</a>
+                    </div>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="table-wrapper">
+        <p class="empty-state">No checks in this report.</p>
+      </div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  {% else %}
+    <section class="empty-top">
+      <p>No scan results to display.</p>
+    </section>
+  {% endif %}
+
+  {# -----------------------------------------------------------------
+     Parsing errors — surfaced separately because they don't fit the
+     pass/fail/skip taxonomy.
+     ----------------------------------------------------------------- #}
+  {% if total_parsing_errors > 0 %}
+  <section class="parsing-errors" aria-label="Parsing errors">
+    <h2>Parsing Errors</h2>
+    {% for report in reports %}
+      {% if report.parsing_errors %}
+      <div class="parsing-group">
+        <h3>{{ report.check_type }}</h3>
+        <ul>
+          {% for error in report.parsing_errors %}
+          <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endif %}
+
+</main>
+
+{# -----------------------------------------------------------------
+   Footer
+   ----------------------------------------------------------------- #}
+<footer class="report-footer">
+  Generated by <a href="{{ tool_url }}">{{ tool_name }}</a>
+  v{{ checkov_version }} at {{ generated_at }}.
+  <a href="{{ docs_url }}">Documentation</a>.
+</footer>
+
+{# -----------------------------------------------------------------
+   Filter / expand JavaScript.
+
+   - Filter buttons toggle ``aria-pressed`` and hide/show rows by
+     adding ``.hidden`` based on each row's ``data-status``.
+   - Expand toggles flip ``aria-expanded`` on the chevron button and
+     mirror that as a ``.open`` class on the sibling details row.
+   - Wrapped in an IIFE so symbols don't leak into the global scope.
+   ----------------------------------------------------------------- #}
+<script>
+(function () {
+  "use strict";
+
+  function applyFilter(filterValue) {
+    var rows = document.querySelectorAll(".result-row, .details-row");
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var status = row.getAttribute("data-status");
+      var match = (filterValue === "all") || (status === filterValue);
+      if (match) {
+        row.classList.remove("hidden");
+      } else {
+        row.classList.add("hidden");
+      }
+    }
+  }
+
+  function onFilterClick(event) {
+    var target = event.currentTarget;
+    var filterValue = target.getAttribute("data-filter") || "all";
+    var buttons = document.querySelectorAll(".filter-btn");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute("aria-pressed", buttons[i] === target ? "true" : "false");
+    }
+    applyFilter(filterValue);
+  }
+
+  function onExpandClick(event) {
+    var btn = event.currentTarget;
+    var expanded = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+    var controlsId = btn.getAttribute("aria-controls");
+    if (!controlsId) { return; }
+    var detailsRow = document.getElementById(controlsId);
+    if (!detailsRow) { return; }
+    if (expanded) {
+      detailsRow.classList.remove("open");
+    } else {
+      detailsRow.classList.add("open");
+    }
+  }
+
+  // Column index for each sortable header in render order. Must stay in
+  // sync with the <th data-sort-key="..."> attributes in the template.
+  var SORT_COLUMN_INDEX = {
+    "status": 0,
+    "check-id": 1,
+    "check-name": 2,
+    "resource": 3,
+    "file": 4,
+    "severity": 5
+  };
+
+  // Severity ranking used when sorting the Severity column so that
+  // "critical" > "high" > ... > "" rather than alphabetic order.
+  var SEVERITY_RANK = {
+    "critical": 5,
+    "high": 4,
+    "medium": 3,
+    "low": 2,
+    "none": 1,
+    "": 0
+  };
+
+  function cellSortValue(row, sortKey, columnIndex) {
+    if (sortKey === "severity") {
+      var sev = (row.getAttribute("data-severity") || "").toLowerCase();
+      return SEVERITY_RANK.hasOwnProperty(sev) ? SEVERITY_RANK[sev] : -1;
+    }
+    if (sortKey === "status") {
+      return (row.getAttribute("data-status") || "").toLowerCase();
+    }
+    var cell = row.cells && row.cells[columnIndex];
+    if (!cell) { return ""; }
+    return (cell.textContent || "").trim().toLowerCase();
+  }
+
+  function compareSortValues(a, b) {
+    if (typeof a === "number" && typeof b === "number") {
+      return a - b;
+    }
+    if (a < b) { return -1; }
+    if (a > b) { return 1; }
+    return 0;
+  }
+
+  function sortTableBy(table, sortKey, direction) {
+    var columnIndex = SORT_COLUMN_INDEX[sortKey];
+    if (columnIndex === undefined) { return; }
+    var tbody = table.tBodies && table.tBodies[0];
+    if (!tbody) { return; }
+
+    // Collect each result row together with its paired details row (if any).
+    var rows = tbody.rows;
+    var groups = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row.classList.contains("result-row")) { continue; }
+      var group = { row: row, details: null, value: cellSortValue(row, sortKey, columnIndex) };
+      var next = row.nextElementSibling;
+      if (next && next.classList.contains("details-row")) {
+        group.details = next;
+      }
+      groups.push(group);
+    }
+
+    var multiplier = direction === "descending" ? -1 : 1;
+    groups.sort(function (g1, g2) {
+      return multiplier * compareSortValues(g1.value, g2.value);
+    });
+
+    // Re-insert in sorted order. appendChild moves nodes already in the DOM.
+    for (var j = 0; j < groups.length; j++) {
+      tbody.appendChild(groups[j].row);
+      if (groups[j].details) { tbody.appendChild(groups[j].details); }
+    }
+  }
+
+  function onHeaderClick(event) {
+    var th = event.currentTarget;
+    var sortKey = th.getAttribute("data-sort-key");
+    if (!sortKey) { return; }
+    var table = th.closest("table.results");
+    if (!table) { return; }
+
+    var current = th.getAttribute("aria-sort");
+    var direction = current === "ascending" ? "descending" : "ascending";
+
+    // Clear sort state on sibling headers so only one column shows direction.
+    var siblings = table.querySelectorAll("thead th[data-sort-key]");
+    for (var i = 0; i < siblings.length; i++) {
+      siblings[i].setAttribute("aria-sort", "none");
+    }
+    th.setAttribute("aria-sort", direction);
+    sortTableBy(table, sortKey, direction);
+  }
+
+  function init() {
+    var filterButtons = document.querySelectorAll(".filter-btn");
+    for (var i = 0; i < filterButtons.length; i++) {
+      filterButtons[i].addEventListener("click", onFilterClick);
+    }
+    var expandButtons = document.querySelectorAll(".expand-toggle");
+    for (var j = 0; j < expandButtons.length; j++) {
+      expandButtons[j].addEventListener("click", onExpandClick);
+    }
+    var sortHeaders = document.querySelectorAll("table.results thead th[data-sort-key]");
+    for (var k = 0; k < sortHeaders.length; k++) {
+      sortHeaders[k].addEventListener("click", onHeaderClick);
+      // Keyboard accessibility: ENTER/SPACE on a focused header triggers sort.
+      sortHeaders[k].setAttribute("tabindex", "0");
+      sortHeaders[k].setAttribute("role", "columnheader");
+      sortHeaders[k].setAttribute("aria-sort", "none");
+      sortHeaders[k].addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onHeaderClick({ currentTarget: e.currentTarget });
+        }
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+</body>
+</html>
